@@ -1,0 +1,1481 @@
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE CH559_DEMO
+OBJECT MODULE PLACED IN CH559_DEMO.OBJ
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE CH559_DEMO.C OPTIMIZE(8,SPEED) BROWSE INCDIR(..\User\Device;..\User\Host
+                    -;..\User;..\User\PUB;..\User\PUB\INC;..\CH559User;.\myInclude) DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          /**
+   2           * Author:Tang Yuan
+   3           * Date:2019.3.21
+   4           * Description:³èÎï»úÆ÷ÈË£¬¼ÓÈë³¬Éù²¨Ä£¿é,Î¹Ê³¹¦ÄÜ
+   5          */
+   6           
+   7          #include "DEBUG.C"
+   8          #include "DEBUG.H"
+   9          #include <string.h>
+  10          #include <stdio.h>
+  11          #include <intrins.h>    
+  12          #include "stdarg.h"
+  13          
+  14          #define uchar unsigned  char
+  15          #define uint  unsigned   int 
+  16          #define Maxtimer2HalfSencondNum 1000
+  17          
+  18          
+  19          // ÔË¶¯Ä£¿é
+  20          // ÔË¶¯Âí´ï1    ×ó±ßµÄ
+  21          sbit motor_1_a = P1^2;
+  22          sbit motor_1_b = P1^3;
+  23          // ÔË¶¯Âí´ï2    ÓÒ±ßµÄ
+  24          sbit motor_2_a = P1^1;
+  25          sbit motor_2_b = P1^0;
+  26          
+  27          
+  28          // ×¢Òâ: µÆ 1¡¢2   ÂÒÐ´µÄÒý½Å   ¼ÇµÃ¸Ä
+  29          sbit led_1 = P0^1;   //j9
+  30          sbit led_2 = P0^2;   //j10
+  31          
+  32          
+  33          // ³¬Éù²¨Ä£¿é
+  34          bit startUDetectionFlag = 0; // ³¬Éù²¨Ì½²â¿ª¹Ø
+  35          
+  36          //Ä£¿éµÄÊý¾Ý½ÅÈ·¶¨
+  37          // ³¬Éù²¨Ä£¿é1£¬Ç°ÃæµÄ
+  38          sbit  Echo_1 = P0^3;      // Echo
+  39          sbit  Trig_1 = P0^2;    // Trig
+  40          // ³¬Éù²¨Ä£¿é2£¬ºóÃæµÄ
+  41          sbit  Echo_2 = P2^4;      // Echo
+  42          sbit  Trig_2 = P2^5;    // Trig
+  43          // ³¬Éù²¨Ä£¿é3£¬×ó±ßµÄ
+  44          sbit  Echo_3 = P0^0;      // Echo
+  45          sbit  Trig_3 = P0^1;    // Trig
+  46          // ³¬Éù²¨Ä£¿é4£¬ÓÒ±ßµÄ
+  47          sbit  Echo_4 = P1^6;      // Echo
+  48          sbit  Trig_4 = P1^7;    // Trig
+  49          
+  50          UINT8  outDetection = 0;  // Ô¶¾àÀë´ÎÊý
+  51          uint  time_ultar = 0;   // Ò»´Î³¬Éù²¨Ì½²âÊ±¼ä   
+  52          UINT8 checkTime = 5;      // Ã¿´Î¼ì²â5´Î
+  53          UINT8 checkRightTime = 5;   // ÓÐÐ§¼ì²â´ÎÊý
+  54          uint distanceSum =0;      // Ò»´ÎÌ½²âµÄ¾àÀë×ÜºÍ
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 2   
+
+  55          uint distanceCount = 0;
+  56          
+  57          
+  58          // ¶¨Ê±Æ÷2
+  59          //ÓÃµ¥Ò»Ä£¿é×Ô¼ºÓÃ±äÁ¿´æÊ±¼ä£¬ÔÙÓëÕâ¸ö¶¨Ê±Æ÷µÄ±äÁ¿±È½Ï£¬²îÖµ¼´Îª¾­¹ýµÄÊ±¼ä£¨¹éÁãÐè×¢Òâ£©
+  60          //ÓÃµ¥Ò»Ä£¿é×Ô¼ºÓÃ±äÁ¿´æÊ±¼ä£¬ÔÙÓëÕâ¸ö¶¨Ê±Æ÷µÄ±äÁ¿±È½Ï£¬²îÖµ¼´Îª¾­¹ýµÄÊ±¼ä£¨¹éÁãÐè×¢Òâ£©
+  61          UINT8 timer2IRSNum = 0;  //Ò»´ÎÖÐ¶Ï´¥·¢¾Í++£¬Âú10¹éÁã,±í0.5Sµ½ÁË
+  62          uint timer2HalfSencondNum = 0; //0.5Ãë¾Í¼ÇÒ»´Î£¬240¸ö0.5S¹éÁã
+  63          bit timer2IncreaseNum= 0;  //  timer2HalfSencondNum Ã¿´ÎÔö³¤¾ÍÖÃ1
+  64          bit oneSecondeFlag = 0;
+  65          bit oneSecondeUDetectionFlag = 0;  // ³¬Éù²¨ÐèÒªÓÃµÄÊ±¼ä±êÇ©
+  66          uint timer2HalfSencondNumForSport = 0; //ÔË¶¯Ä£¿éÓÃÀ´±È½ÏÊÕµ½ÃüÁî¾­¹ýµÄÊ±¼ä
+  67          
+  68          
+  69          UINT8 DAT = 1;
+  70          bit getDataFlag = 0 ;   //ÊÕµ½ºÏÊÊµÄÊý¾Ý
+  71          UINT8 timeSport = 0 ;   // Ò»´ÎÔË¶¯µÄÊ±¼ä¼ÆÊý                                                         // ±£»¤Ê±¼ä¼ÆÊý
+  72          UINT8 order[10];      // ÊÕµ½µÄÊý¾Ý                                                         // ÊÕµ½µÄÃüÁî
+  73          UINT8 bufNum = 0;   
+  74          
+  75          
+  76          /////////////////////////////////
+  77          //×¢Òâ:ÐèÒªÖØÐÂ¸³ÖµÒý½Å
+  78          
+  79          // Í¶Ê³ 
+  80          // ÊÕµ½Í¶Ê³µÄÃüÁî ,0:ÎÞÐèÍ¶Ê³²Ù×÷£¬1£º ¿ªÊ¼Í¶Ê³£¬2£º ½áÊøÍ¶Ê³
+  81          UINT8 needFeed = 0 ;    
+  82          // É¨Ê³Âí´ï                           
+  83          sbit motor_SweepFood_a = P2^3;
+  84          sbit motor_SweepFood_b = P2^2;
+  85          // ÍÆ³öÊ³²ÛÂí´ï   
+  86          sbit motor_pushFood_a = P2^0;
+  87          sbit motor_pushFood_b = P2^1;
+  88          
+  89          sbit needStopPush = P0^4;
+  90          sbit needStopPull = P0^5;
+  91          
+  92                                                                  // µ±Ç°ÃüÁîµÄ×Ö½ÚÊý
+  93          // ÔË¶¯·½Ê½¼ÇÂ¼±äÁ¿
+  94          UINT8 sportClass = 'i';  //  ÕæÕý»áÅÐ¶ÏµÄÖ¸Áî
+  95          UINT8 newSportClass = 'i';  // »ñÈ¡ÐÂÏÂ·¢µÄÖ¸Áî£¬ÔÚÖ´ÐÐµÄÊ±ºò»á¸úsportClass±È½ÏÔÙ¸³Öµ¸øsportClass                 
+             -                                      // ÔË¶¯ µÄÀàÐÍ
+  96                                                              // ¼ÇÂ¼Ç°Ò»´Î µÄÔË¶¯ÀàÐÍ£¬·ÀÖ¹¿ìËÙ×ª»»µçÆ½down»ú
+  97          
+  98          // ×Ô¶¨Òå´òÓ¡º¯Êý ±äÁ¿
+  99          bit printfBusy;  // ·¢ËÍ×´Ì¬Î»
+ 100          unsigned char idata Put_buf[70];    // ´òÓ¡µÄ×î´ó×Ö·û
+ 101          
+ 102          
+ 103          /*******************************************************************************
+ 104          * Function Name  : void TIM2Inital(void)
+ 105          * Description    : timer2  ¶¨Ê±¿ªÆô£¬Ã¿50ms ÖÐ¶Ï
+ 106          * Input          : None
+ 107          * Output         : None
+ 108          * Return         : None
+ 109          *******************************************************************************/
+ 110          void TIM2Inital(void)
+ 111          {
+ 112   1        RCAP2H = (65536-50000)/256;//¾§Õñ12M 50ms 16bit ×Ô¶¯ÖØÔØ
+ 113   1        RCAP2L = (65536-50000)%256;
+ 114   1        ET2=1;                     //´ò¿ª¶¨Ê±Æ÷ÖÐ¶Ï
+ 115   1        EA=1;                      //´ò¿ª×ÜÖÐ¶Ï
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 3   
+
+ 116   1        TR2=1;                     //´ò¿ª¶¨Ê±Æ÷¿ª¹Ø
+ 117   1      }
+ 118          
+ 119          void TIM2(void) interrupt INT_NO_TMR2 //¶¨Ê±Æ÷2ÖÐ¶Ï
+ 120          {
+ 121   1        timer2IRSNum++;
+ 122   1        if (timer2IRSNum == 10)// ¾­¹ý0.5Ãë
+ 123   1        {
+ 124   2          timer2IRSNum =0; // 0.5Ãë¹éÁã
+ 125   2          timer2HalfSencondNum++;
+ 126   2          timer2IncreaseNum = 1;
+ 127   2          
+ 128   2          
+ 129   2          
+ 130   2          //²é¿´ÊÇ·ñµ½ 1s 
+ 131   2          if (((timer2HalfSencondNum %2) == 0))
+ 132   2          {
+ 133   3            oneSecondeFlag = 1;
+ 134   3            oneSecondeUDetectionFlag = 1;
+ 135   3          }
+ 136   2        }
+ 137   1        
+ 138   1        
+ 139   1      
+ 140   1        
+ 141   1        
+ 142   1        if (timer2HalfSencondNum == Maxtimer2HalfSencondNum)// 500s¹éÁã
+ 143   1        {
+ 144   2          timer2HalfSencondNum = 0;
+ 145   2        }
+ 146   1        
+ 147   1        
+ 148   1        
+ 149   1        TF2=0;
+ 150   1      }
+ 151          
+ 152          
+ 153          
+ 154          /*******************************************************************************
+ 155          * Function Name  : my_printf(char* fmt,...) 
+ 156          * Description    : 
+ 157          *         ×Ô¼ºµÄ´òÓ¡º¯Êý£¬¿ÉÒÔÓÃÓÚ´®¿ÚÊý¾ÝÉÏ´«µ½A33,ÍâÃæ×Ô¼º¶¨ÒåÍ¨ÐÅÐ­Òé
+ 158          *         Ö®ËùÒÔ×Ô¶¨Òå´òÓ¡º¯Êý£¬ÒòÎªprintf ºÍ  SBUF Á¬ÓÃ²»Ì«·½±ã£¬´òÓ¡ÓÐÎÊÌâ
+ 159          * Input          : ¸úprintfÊ¹ÓÃ²î²»¶àµÄ£¬×¢Òâ »»ÐÐµÄ"\n"  ÐèÒª»»³É  "\r\n"
+ 160          * Output         : None
+ 161          * Return         :
+ 162          *******************************************************************************/
+ 163          void my_printf(char* fmt,...)
+ 164          {
+ 165   1        unsigned char i,len;
+ 166   1        va_list ap;
+ 167   1        va_start(ap,fmt);
+ 168   1        len=vsprintf((char*)Put_buf,fmt,ap);
+ 169   1        va_end(ap);
+ 170   1        
+ 171   1        for(i=0;i<len;i++)      //°Ñ»º´æÄÚµÄ×Ö·û·¢ËÍ³öÈ¥
+ 172   1        { 
+ 173   2          while(printfBusy);              //µÈ´ýÇ°ÃæµÄÊý¾Ý·¢ËÍÍê³É
+ 174   2          printfBusy=1; 
+ 175   2          SBUF=Put_buf[i];    //·¢ËÍÒ»¸ö×Ö½Ú
+ 176   2        }
+ 177   1        while(printfBusy);
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 4   
+
+ 178   1        printfBusy=1;
+ 179   1        SBUF = '\r';
+ 180   1        while(printfBusy);
+ 181   1        printfBusy=1;
+ 182   1        SBUF = '\n';
+ 183   1        
+ 184   1        memset(Put_buf,0,sizeof(Put_buf));  //Çå¿Õ»º´æ
+ 185   1      }
+ 186          
+ 187          
+ 188          /*******************************************************************************
+ 189          * Function Name  : delayus 
+ 190          * Description    : us  ÑÓÊ±
+ 191          * Input          : None
+ 192          * Output         : None
+ 193          * Return         : None
+ 194          *******************************************************************************/
+ 195          void delayus(unsigned int us)
+ 196          {
+ 197   1        for(;us;us--)
+ 198   1        {
+ 199   2          _nop_();
+ 200   2        }
+ 201   1      }
+ 202          
+ 203          /*******************************************************************************
+ 204          * Function Name  : delayms 
+ 205          * Description    : ms  ÑÓÊ±
+ 206          * Input          : None
+ 207          * Output         : None
+ 208          * Return         : None
+ 209          *******************************************************************************/
+ 210          void delayms(unsigned int ms)
+ 211          {
+ 212   1        unsigned char i=100,j;
+ 213   1        for(;ms;ms--)
+ 214   1        {
+ 215   2          while(--i)
+ 216   2          {
+ 217   3            j=10;
+ 218   3            while(--j);
+ 219   3          }
+ 220   2        }
+ 221   1      }
+ 222          
+ 223          
+ 224          
+ 225          
+ 226          /*******************************************************************************
+ 227          * Function Name  : startFeedPet 
+ 228          * Description    : ½øÐÐÎ¹Ê³£¬°ÑÊ³²ÛÍÆ³öÀ´
+ 229          * Input          : None
+ 230          * Output         : None
+ 231          * Return         : None
+ 232          *******************************************************************************/
+ 233          void startFeedPet(void)
+ 234          {
+ 235   1        if (needFeed == 1)  // ÓÐÎ¹Ê³µÄÃüÁî
+ 236   1        {
+ 237   2          
+ 238   2          // ±£Ö¤Í£Ö¹ÔË¶¯
+ 239   2          motor_1_a = 0;
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 5   
+
+ 240   2          motor_1_b = 0;
+ 241   2          motor_2_a = 0;
+ 242   2          motor_2_b = 0;  
+ 243   2          delayms(20);
+ 244   2          
+ 245   2      //////////////////////////////////////////
+ 246   2      // ×¢Òâ£ºÂí´ïµÄ 0 1 ¸³Öµ¿ÉÄÜ·´ÁË£¬¼ÇµÃµ÷ÏÂ
+ 247   2      //////////////////////////////////////////
+ 248   2          if (needStopPush != 0 )  // ²»Îª0£¬»¹¿ÉÒÔÍÆ
+ 249   2          {
+ 250   3            // ÏÈ°ÑÊ³ÎïÉ¨½øÊ³²Û
+ 251   3            motor_SweepFood_a = 1;
+ 252   3            motor_SweepFood_b = 0;
+ 253   3            
+ 254   3            my_printf("Sweep  Start = 1\r\n");
+ 255   3            delayms(5000);   //  ¾ö¶¨°Ñ¶àÉÙÊ³ÎïÉ¨½øÊ³²Û Ã²ËÆÊ±¼äÊÇ12Ãë
+ 256   3            my_printf("Sweep  Stop = 1\r\n");
+ 257   3            
+ 258   3            motor_SweepFood_a = 0;
+ 259   3            motor_SweepFood_b = 0;
+ 260   3            
+ 261   3            delayms(20);
+ 262   3            
+ 263   3          
+ 264   3            // °ÑÊ³²ÛÍÆ³ö
+ 265   3            motor_pushFood_a = 1;
+ 266   3            motor_pushFood_b = 0;
+ 267   3            //delayms(5000);
+ 268   3            
+ 269   3            needStopPush = 1;
+ 270   3            while (needStopPush)
+ 271   3            {
+ 272   4              delayms(10);
+ 273   4              my_printf("needStopPush = 1\r\n");
+ 274   4            }
+ 275   3            
+ 276   3            motor_pushFood_a = 0;
+ 277   3            motor_pushFood_b = 0;
+ 278   3          }
+ 279   2          
+ 280   2      
+ 281   2          needFeed = 0;
+ 282   2        }
+ 283   1      }
+ 284          
+ 285          /*******************************************************************************
+ 286          * Function Name  : stopFeedPet 
+ 287          * Description    : ½áÊøÎ¹Ê³£¬°ÑÊ³²ÛÀ­»ØÀ´
+ 288          * Input          : None
+ 289          * Output         : None
+ 290          * Return         : None
+ 291          *******************************************************************************/
+ 292          void stopFeedPet(void)
+ 293          {
+ 294   1        if (needFeed == 2)  // ÓÐÍ£Ö¹Î¹Ê³µÄÃüÁî
+ 295   1        {
+ 296   2          // ±£Ö¤Í£Ö¹ÔË¶¯
+ 297   2          motor_1_a = 0;
+ 298   2          motor_1_b = 0;
+ 299   2          motor_2_a = 0;
+ 300   2          motor_2_b = 0;
+ 301   2              
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 6   
+
+ 302   2      //////////////////////////////////////////
+ 303   2      // ×¢Òâ£ºÂí´ïµÄ 0 1 ¸³Öµ¿ÉÄÜ·´ÁË£¬¼ÇµÃµ÷ÏÂ
+ 304   2      //////////////////////////////////////////
+ 305   2          
+ 306   2          
+ 307   2          
+ 308   2          if (needStopPull != 0)  // ²»Îª0 £¬ËµÃ÷»¹¿ÉÒÔÀ­
+ 309   2          {
+ 310   3            // °ÑÊ³²ÛÊÕ»Ø
+ 311   3            motor_pushFood_a = 0;
+ 312   3            motor_pushFood_b = 1;
+ 313   3            
+ 314   3            needStopPull = 1;
+ 315   3            while (needStopPull)  // µ±À­»ØÊ³²ÛµÄ½áÊøÎ»ÖÃµÄÊ±ºò»á  needStopPull == 0
+ 316   3            { 
+ 317   4              delayms(10);
+ 318   4              my_printf("needStopPull = 1\r\n");
+ 319   4            }
+ 320   3            
+ 321   3            motor_pushFood_a = 0;
+ 322   3            motor_pushFood_b = 0;
+ 323   3          }
+ 324   2      
+ 325   2      
+ 326   2          needFeed = 0;
+ 327   2        }
+ 328   1      }
+ 329          
+ 330          
+ 331          
+ 332          
+ 333          /*******************************************************************************
+ 334          * Function Name  : void conutDetection(void) 
+ 335          * Description    : ¼ÆËã¼ì²âµ½µÄ¾àÀë
+ 336          * Input          : None
+ 337          * Output         : None
+ 338          * Return         : S Ì½²âµ½µÄ¾àÀë£¬Èç¹ûÌ«Ô¶¾ÍÊÇÉèÖÃ800CM 
+ 339          *******************************************************************************/
+ 340          uint conutDetection(void)
+ 341          {
+ 342   1        uint S=0;
+ 343   1        if(outDetection !=0 )       //³¬³ö²âÁ¿  
+ 344   1        {
+ 345   2          outDetection=0;
+ 346   2          //my_printf("Y\r\n");
+ 347   2          
+ 348   2          return 800;
+ 349   2        }
+ 350   1          
+ 351   1        time_ultar = 0;
+ 352   1        // ¼ÆËã²îÖµ
+ 353   1        time_ultar=(TH0-0xbb)*256+(TL0 - 0x11);  // Ò»¸ö¼ÆÊý£¬1/10M Ãë   1us,ÈÃËüÒç³ö£¬µÃ65ms
+ 354   1      
+ 355   1        S= (uint)(time_ultar*1.87)/100;     //Ëã³öÀ´ÊÇCM
+ 356   1      
+ 357   1        return S;
+ 358   1      }
+ 359          
+ 360          
+ 361          
+ 362          
+ 363          /*******************************************************************************
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 7   
+
+ 364          * Function Name  : mTimer0Interrupt 
+ 365          * Description    : ³¬¹ý²â¾à·¶Î§
+ 366          * Input          : None
+ 367          * Output         : None
+ 368          * Return         : None
+ 369          *******************************************************************************/
+ 370          void mTimer0Interrupt( void ) interrupt INT_NO_TMR0      //T0ÖÐ¶ÏÓÃÀ´¼ÆÊýÆ÷Òç³ö,³¬¹ý²â¾à·¶Î§
+ 371          {
+ 372   1        outDetection = outDetection + 1 ;   //ÖÐ¶ÏÒç³ö±êÖ¾
+ 373   1      }
+ 374            
+ 375            
+ 376            
+ 377          /*******************************************************************************
+ 378          * Function Name  : StartUltrasoundDetection() 
+ 379          * Description    : ³¬Éù²¨Ä£¿éÆô¶¯ÐÅºÅ
+ 380          * Input          : None
+ 381          * Output         : None
+ 382          * Return         : None
+ 383          *******************************************************************************/
+ 384          void  StartUltrasoundDetection()             
+ 385          {
+ 386   1        // ·¢Æð³¬Éù²¨Ì½²â
+ 387   1         // my_printf(" StartUltrasoundDetection\r\n");
+ 388   1        Trig_1=1;                    
+ 389   1        delayus(20);
+ 390   1        Trig_1=0;
+ 391   1        
+ 392   1        TH0=0xbb;     // ¶¨Ê±Æ÷ÇåÁã,Ö»´òËãÌ½²â4Ã×ÒÔÄÚµÄ¾àÀë,Ö»ÀÛ¼ÆÖµ 17647  ¸öÊ±ÖÓ
+ 393   1        TL0=0x11; 
+ 394   1      }
+ 395          
+ 396          
+ 397          
+ 398          /*******************************************************************************
+ 399          * Function Name  : UltrasonicInit() 
+ 400          * Description    : ³¬Éù²¨Ä£¿éÊ±ÖÓ0ÉèÖÃ£¬ÔÊÐíT0ÖÐ¶ÏµÈ
+ 401          * Input          : None
+ 402          * Output         : None
+ 403          * Return         : None
+ 404          *******************************************************************************/
+ 405          void  UltrasonicInit()             
+ 406          {
+ 407   1          TMOD |=0x01;  //¶¨Ê±Æ÷0¹¤×÷·½Ê½1
+ 408   1          ET0=1;
+ 409   1          PT0 = 1;     // ¶¨Ê±Æ÷0 ÓÅÏÈÖÐ¶Ï
+ 410   1          
+ 411   1          Trig_1 = 0;
+ 412   1          TR0=0;     // ¹Ø±Õ¼ÆÊýÆ÷0
+ 413   1        
+ 414   1      }
+ 415          
+ 416          
+ 417          /*******************************************************************************
+ 418          * Function Name  : CH559UART0InterruptInit()
+ 419          * Description    : CH559UART0ÖÐ¶Ï³õÊ¼»¯
+ 420          * Input          : None
+ 421          * Output         : None
+ 422          * Return         : None
+ 423          *******************************************************************************/
+ 424          void CH559UART0InterruptInit()
+ 425          {
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 8   
+
+ 426   1          
+ 427   1        SM0 = 0;
+ 428   1        SM1 = 1;                                  //´®¿Ú0Ê¹ÓÃÄ£Ê½1
+ 429   1      
+ 430   1        SM2 = 0;    
+ 431   1        TMOD = 0x20;                                        //Ê¹ÓÃTimer1×÷Îª²¨ÌØÂÊ·¢ÉúÆ÷
+ 432   1                                              // 
+ 433   1      
+ 434   1        PCON |= SMOD;
+ 435   1        T2MOD |= 0xa0;                                
+ 436   1      
+ 437   1        TH1 = 0xb2;                                 // ²¨ÌØÂÊ 9600
+ 438   1        TR1 = 1;                                                                  //Æô¶¯¶¨Ê±Æ÷1
+ 439   1      
+ 440   1        REN = 1; 
+ 441   1        ES = 1;                                                                     //¿ªÆôUART0ÖÐ¶Ï
+ 442   1        EA = 1;                                                                     //×ÜÖÐ¶Ï¿ªÆô
+ 443   1        TI = 1;                                   // ·¢ËÍÖÐ¶Ï±êÖ¾Î»£¬·¢ËÍÍêÓ²¼þÖÃ1
+ 444   1        PS =1;                                    // ³¢ÊÔÌá¸ß´®¿ÚÓÅÏÈ¼¶
+ 445   1      }
+ 446          
+ 447          
+ 448          
+ 449          
+ 450          /*******************************************************************************
+ 451          * Function Name  : sendState()
+ 452          * Description    : ·¢ËÍµ±Ç°»úÆ÷ÈËÇé¿ö 
+ 453          * Input          : None
+ 454          * Output         : None
+ 455          * Return         : None
+ 456          *******************************************************************************/
+ 457          void sendState()
+ 458          {
+ 459   1        while(1); 
+ 460   1        
+ 461   1      }
+ 462          
+ 463          /*******************************************************************************
+ 464          * Function Name  : executeOrder()
+ 465          * Description    : Ö´ÐÐÃüÁî  
+ 466          * Input          : 
+ 467          *         command1: ÃüÁîÀàÐÍ
+ 468          *         command2: ¾ßÌåÃüÁî²Ù×÷
+ 469          * Output         : None
+ 470          * Return         : None
+ 471          *******************************************************************************/
+ 472          void executeOrder( UINT8 command1, UINT8 command2)
+ 473          { 
+ 474   1        //my_printf("d2£º%bu ,d2£º%bu\r\n",command1,command2);
+ 475   1        
+ 476   1        
+ 477   1                                  
+ 478   1        if ( command1 == '1') // ÔË¶¯Ïà¹ØµÄÃüÁî
+ 479   1        {
+ 480   2          switch (command2)
+ 481   2          {
+ 482   3            //my_printf("enter command2£º%bu\r\n",command2);
+ 483   3            // a:Ç° b:ºó  c:×ó d:ÓÒ e:Ç° + ÓÒ  g£ººó + ÓÒ  h£ººó + ×ó  i£ºÍ£  
+ 484   3            case 'a':
+ 485   3            case 'b':
+ 486   3            case 'c':
+ 487   3            case 'd':
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 9   
+
+ 488   3            case 'e':
+ 489   3            case 'f':
+ 490   3            case 'g':
+ 491   3            case 'h':
+ 492   3            case 'i':
+ 493   3            
+ 494   3              newSportClass  = command2;
+ 495   3              timer2HalfSencondNumForSport = timer2HalfSencondNum;
+ 496   3              timeSport = 0;
+ 497   3              break;
+ 498   3            default:
+ 499   3              newSportClass  = 'i';
+ 500   3              
+ 501   3              break;      
+ 502   3          }   
+ 503   2          
+ 504   2        }else if (command1 == '2')  // ³¬Éù²¨Ïà¹ØµÄÃüÁî
+ 505   1        {
+ 506   2          switch (command2)
+ 507   2          {
+ 508   3            case 'a':   // ¿ªÆô³¬Éù²¨Ì½²â 
+ 509   3              startUDetectionFlag = 1;
+ 510   3              break;
+ 511   3            case 'b':  // ¹Ø±Õ³¬Éù²¨Ì½²â
+ 512   3              startUDetectionFlag = 0;
+ 513   3              break;  
+ 514   3            default:
+ 515   3              break;      
+ 516   3          } 
+ 517   2          
+ 518   2          
+ 519   2        }else if (command1 == '4')  // Í¶Ê³Ïà¹ØµÄÃüÁî
+ 520   1        {
+ 521   2          switch (command2)
+ 522   2          {
+ 523   3            case 'a':   // ½øÐÐÍ¶Ê³ 
+ 524   3              newSportClass  = 'i';  
+ 525   3              needFeed = 1;   // ÎªÀ²°²È« £¬È·±£Í£Ö¹
+ 526   3              break;
+ 527   3            case 'b':  // ½áÊøÍ¶Ê³
+ 528   3              needFeed = 2;     
+ 529   3              newSportClass  = 'i'; // ÎªÀ²°²È« £¬È·±£Í£Ö¹
+ 530   3              break;  
+ 531   3            default:
+ 532   3              newSportClass  = 'i'; // ÎªÀ²°²È« £¬È·±£Í£Ö¹
+ 533   3              break;      
+ 534   3          } 
+ 535   2          
+ 536   2        }
+ 537   1          // case 'j':
+ 538   1            // led_1  = 1;
+ 539   1            // break;
+ 540   1          // case 'k':
+ 541   1            // led_1  = 0;
+ 542   1            // break;
+ 543   1          // case 'l':
+ 544   1            // led_2  = 1;
+ 545   1            // break;
+ 546   1          // case 'm':
+ 547   1            // led_2  = 0;
+ 548   1            // break;
+ 549   1          // case 'o':
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 10  
+
+ 550   1            // sendState();
+ 551   1            // break;
+ 552   1      
+ 553   1      
+ 554   1      
+ 555   1      }
+ 556          
+ 557          
+ 558          /*******************************************************************************
+ 559          * Function Name  : CH559UART0Interrupt()
+ 560          * Description    : CH559UART0ÖÐ¶Ï´¦Àíº¯Êý£¬ÅÐ¶ÏÒ»ÌõÃüÁî½ÓÊÕÇé¿ö
+ 561          *******************************************************************************/
+ 562           void CH559UART0Interrupt( )  interrupt INT_NO_UART0  using 1                   //¿´ÃÅ¹·ÖÐ¶Ï·þÎñ³ÌÐò,Ê¹ÓÃ¼
+             -Ä´æÆ÷×é1
+ 563           {
+ 564   1          if(TI)
+ 565   1          {
+ 566   2          TI = 0;                                                                // Çå¿Õ·¢ËÍÖÐ¶Ï                  
+             -      
+ 567   2          printfBusy = 0;
+ 568   2          }
+ 569   1          
+ 570   1          if(RI)
+ 571   1          {         
+ 572   2          DAT = SBUF;
+ 573   2          //SBUF = DAT; 
+ 574   2      
+ 575   2        
+ 576   2      
+ 577   2          if (1)
+ 578   2          {
+ 579   3                  //  ¼à²âµ½¿ªÍ·Îª# ²Å½øÐÐ½ÓÊÕºÍ½âÎö
+ 580   3            if ( DAT == '#')
+ 581   3            {
+ 582   4              getDataFlag = 1;
+ 583   4              bufNum = 0;
+ 584   4            }
+ 585   3            
+ 586   3            if ( getDataFlag == 1)  // ÊÕµ½Ð­Òé¿ªÍ·  '#¡®,½øÐÐ×Ö·û»º´æ
+ 587   3            {
+ 588   4              order[bufNum] = DAT;  
+ 589   4              // SBUF =     order[bufNum];
+ 590   4              // SBUF = bufNum;     
+ 591   4            }
+ 592   3            
+ 593   3            if (  bufNum == 3 )   //  ÊÕµ½4 ×Ö½Ú  ,ÅÐ¶ÏÊÇ²»ÊÇÒ»ÌõÃüÁî,
+ 594   3            {
+ 595   4              //my_printf("order:%bu%bu%bu%bu  \r\n",order[0],order[1], order[2],order[3]);
+ 596   4              if ( order[bufNum] == '.' )  //"."±íÒ»¸öÃüÁîµÄ½áÊø
+ 597   4              {
+ 598   5                // Âú×ãÐ­ÒéÒªÇóµÄ×Ö½ÚÁ÷£¬Èç"#1a."
+ 599   5                if ( order[bufNum-3] == '#')
+ 600   5                {
+ 601   6                  executeOrder(order[bufNum-2], order[bufNum-1]);           // Ê¹ÓÃ'.'µÄÇ°Á½Î»Î»£¬ÎªÃüÁî   Èç  1a       
+ 602   6                }       
+ 603   5              }
+ 604   4          
+ 605   4              // ÊÕµ½4¸ö×Ö½Úºó£¬ÎÞÂÛÊÇ²»ÊÇÃüÁî£¬¶¼¸ÃÇå³ý±êÖ¾
+ 606   4              bufNum = 0;
+ 607   4              
+ 608   4              // order[0] = '0';
+ 609   4              // order[1] = '0';
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 11  
+
+ 610   4              // order[2] = '0';
+ 611   4              // order[3] = '0';
+ 612   4              memset(order,0,sizeof(order));  //Çå¿Õ»º´æ
+ 613   4              getDataFlag = 0;
+ 614   4              DAT = '/';
+ 615   4            }
+ 616   3            else{
+ 617   4              bufNum++;  // ÏÂÒ»¸ö×Ö·û·Å¶îÎ»ÖÃ  
+ 618   4            }
+ 619   3                  
+ 620   3          }
+ 621   2          
+ 622   2          RI = 0;                                                               // Çå¿Õ½ÓÊÕÖÐ¶Ï
+ 623   2           }
+ 624   1          
+ 625   1       }
+ 626          
+ 627           
+ 628           /*******************************************************************************
+ 629          * Function Name  :initMotorGPIO(void)
+ 630          * Description    : ³õÊ¼»¯  Çý¶¯Âí´ï ËùÐèµÄIO¿Ú
+ 631          * Input          : None
+ 632          * Output         : None
+ 633          * Return         : None
+ 634          *******************************************************************************/
+ 635          void  initMotorGPIO(void)
+ 636          {
+ 637   1        // p1.0¡¢1    INM_2       ÓÒ±ßµÄ
+ 638   1        // p1.2¡¢3    INB_1   ×ó±ßµÄ
+ 639   1        P1_DIR |= (0x0f);
+ 640   1        
+ 641   1        // p2.0¡¢1    INB_3   ÍÆ³öÊ³²ÛÂí´ï
+ 642   1        // p2.2¡¢3    INB_4   É¨Ê³Âí´ï
+ 643   1        P2_DIR |= (0x0f);
+ 644   1        
+ 645   1        
+ 646   1      }
+ 647          
+ 648          /*******************************************************************************
+ 649          * Function Name  :conductSport(void)
+ 650          * Description    : Ö´ÐÐÔË¶¯¹¦ÄÜ
+ 651          * Input          : None
+ 652          * Output         : None
+ 653          * Return         : None
+ 654          *******************************************************************************/
+ 655          void conductSport(void)
+ 656          {
+ 657   1        
+ 658   1        //  ÅÐ¶ÏÎ´ÊÕµ½ÃüÁî³¬2sÃ»£¬ÍÆ¼öAPP 1.5sÏÂ·¢Ò»´ÎÊý¾Ý
+ 659   1        TR2=0; 
+ 660   1        if (timer2HalfSencondNum > timer2HalfSencondNumForSport)  // Á½ÊýÎ´³¬È¦£¬¼´ÔÚµ±Ç° timer2HalfSencondNum  Î
+             -´¹éÁã
+ 661   1        {
+ 662   2          if ((timer2HalfSencondNum - timer2HalfSencondNumForSport) >3 )  //  Î´ÊÕµ½ÃüÁî2s
+ 663   2          {
+ 664   3            my_printf("sportClass = 'i';\r\n");
+ 665   3            newSportClass = 'i';
+ 666   3            
+ 667   3            timer2HalfSencondNumForSport = timer2HalfSencondNum;
+ 668   3          }
+ 669   2        }
+ 670   1        if (timer2HalfSencondNum < timer2HalfSencondNumForSport)  //ÔÚÕâ2sÄÚ timer2HalfSencondNum  ¹éÁãÁË
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 12  
+
+ 671   1        {
+ 672   2          if ((timer2HalfSencondNum+Maxtimer2HalfSencondNum - timer2HalfSencondNumForSport) >3 )  //  Î´ÊÕµ½ÃüÁî2s
+ 673   2          {
+ 674   3            my_printf("sportClass = 'i'   go  to 0;\r\n");
+ 675   3            newSportClass = 'i';
+ 676   3            timer2HalfSencondNumForSport = timer2HalfSencondNum;
+ 677   3            
+ 678   3          }
+ 679   2        }
+ 680   1        TR2=1; 
+ 681   1        
+ 682   1        
+ 683   1        if (newSportClass == sportClass) // ÖØ¸´µÄÖ¸Áî£¬Ö±½Ó¼ÌÐøÉÏÒ»´ÎµÄÔË¶¯
+ 684   1        {
+ 685   2          mDelaymS(200);    // µÈ0.2Ãë
+ 686   2          return;
+ 687   2        }
+ 688   1        else{
+ 689   2          sportClass = newSportClass;  // ¸üÐÂµ±Ç°µÄÔË¶¯²Ù×÷
+ 690   2          
+ 691   2          
+ 692   2          // ½øÈë´ýÃü×´Ì¬ »º»º
+ 693   2          motor_1_a = 0;
+ 694   2          motor_1_b = 0;
+ 695   2          motor_2_a = 0;
+ 696   2          motor_2_b = 0;
+ 697   2          mDelaymS(50);
+ 698   2        }
+ 699   1        
+ 700   1        if ( sportClass == 'i')
+ 701   1        {
+ 702   2          
+ 703   2          //  Á½ÂÖ´ýÃü
+ 704   2          motor_1_a = 0;
+ 705   2          motor_1_b = 0;
+ 706   2          motor_2_a = 0;
+ 707   2          motor_2_b = 0;
+ 708   2      
+ 709   2          
+ 710   2          mDelaymS(200);    // µÈ0.2Ãë
+ 711   2        }
+ 712   1        else if ( sportClass == 'a')
+ 713   1        {
+ 714   2      
+ 715   2          //  Ç°½ø
+ 716   2          motor_1_a = 1;
+ 717   2          motor_1_b = 0;
+ 718   2          motor_2_a = 1;
+ 719   2          motor_2_b = 0;
+ 720   2          
+ 721   2          //my_printf("+\r\n");
+ 722   2          mDelaymS(200);    // µÈ0.2Ãë
+ 723   2          
+ 724   2        }
+ 725   1        else if ( sportClass == 'b')
+ 726   1        {     
+ 727   2          
+ 728   2          //  ºóÍË
+ 729   2          motor_1_a = 0;
+ 730   2          motor_1_b = 1;
+ 731   2          motor_2_a = 0;
+ 732   2          motor_2_b = 1;
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 13  
+
+ 733   2          
+ 734   2          mDelaymS(200);    // µÈ0.2Ãë
+ 735   2          
+ 736   2        }
+ 737   1        else if ( sportClass == 'c')
+ 738   1        {
+ 739   2            
+ 740   2          //  ×ó
+ 741   2          
+ 742   2          /*
+ 743   2          motor_1_a = 1;
+ 744   2          motor_1_b = 1;
+ 745   2          motor_2_a = 1;
+ 746   2          motor_2_b = 0;
+ 747   2          
+ 748   2          mDelaymS(200);    // µÈ0.2Ãë          
+ 749   2          */
+ 750   2          
+ 751   2          
+ 752   2          // //  ×ó  ÉÔ´óµÄÈ¦
+ 753   2          // //  Ç°½ø
+ 754   2          // motor_1_a = 1;
+ 755   2          // motor_1_b = 0;
+ 756   2          // motor_2_a = 1;
+ 757   2          // motor_2_b = 0;
+ 758   2          
+ 759   2          // mDelaymS(50);    
+ 760   2          
+ 761   2          //  ×ó
+ 762   2          motor_1_a = 0;
+ 763   2          motor_1_b = 0;
+ 764   2          motor_2_a = 1;
+ 765   2          motor_2_b = 0;
+ 766   2          
+ 767   2          mDelaymS(200);    
+ 768   2          
+ 769   2        }
+ 770   1        else if ( sportClass == 'd')
+ 771   1        {
+ 772   2          /*  
+ 773   2          //  ÓÒ
+ 774   2          motor_1_a = 1;
+ 775   2          motor_1_b = 0;
+ 776   2          motor_2_a = 1;
+ 777   2          motor_2_b = 1;
+ 778   2          
+ 779   2          mDelaymS(200);    // µÈ0.2Ãë            
+ 780   2          */
+ 781   2          
+ 782   2          // // ÓÒ´óµãµÄÈ¦
+ 783   2          
+ 784   2          // //  Ç°½ø
+ 785   2          // motor_1_a = 1;
+ 786   2          // motor_1_b = 0;
+ 787   2          // motor_2_a = 1;
+ 788   2          // motor_2_b = 0;
+ 789   2          
+ 790   2          // mDelaymS(50);    
+ 791   2          
+ 792   2          //  ÓÒ
+ 793   2          motor_1_a = 1;
+ 794   2          motor_1_b = 0;
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 14  
+
+ 795   2          motor_2_a = 0;
+ 796   2          motor_2_b = 0;
+ 797   2          
+ 798   2          mDelaymS(200);    
+ 799   2          
+ 800   2        }
+ 801   1        else if ( sportClass == 'e')
+ 802   1        {
+ 803   2            
+ 804   2          // Ç° + ÓÒ
+ 805   2          
+ 806   2          //  Ç°½ø
+ 807   2          motor_1_a = 1;
+ 808   2          motor_1_b = 0;
+ 809   2          motor_2_a = 1;
+ 810   2          motor_2_b = 0;
+ 811   2          
+ 812   2          mDelaymS(100);    
+ 813   2          
+ 814   2          //  ÓÒ
+ 815   2          motor_1_a = 1;
+ 816   2          motor_1_b = 0;
+ 817   2          motor_2_a = 0;
+ 818   2          motor_2_b = 0;
+ 819   2          
+ 820   2          mDelaymS(100);    
+ 821   2      
+ 822   2          
+ 823   2        }
+ 824   1        else if ( sportClass == 'f')
+ 825   1        {
+ 826   2            
+ 827   2          // Ç° + ×ó
+ 828   2          
+ 829   2          //  Ç°½ø
+ 830   2          motor_1_a = 1;
+ 831   2          motor_1_b = 0;
+ 832   2          motor_2_a = 1;
+ 833   2          motor_2_b = 0;
+ 834   2          
+ 835   2          mDelaymS(100);    
+ 836   2          
+ 837   2          //  ×ó
+ 838   2          motor_1_a = 0;
+ 839   2          motor_1_b = 0;
+ 840   2          motor_2_a = 1;
+ 841   2          motor_2_b = 0;
+ 842   2          
+ 843   2          mDelaymS(100);    
+ 844   2      
+ 845   2          
+ 846   2        }
+ 847   1        else if ( sportClass == 'g')
+ 848   1        {
+ 849   2      
+ 850   2          // ºó + ÓÒ
+ 851   2          
+ 852   2          //  ºóÍË
+ 853   2          motor_1_a = 0;
+ 854   2          motor_1_b = 1;
+ 855   2          motor_2_a = 0;
+ 856   2          motor_2_b = 1;
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 15  
+
+ 857   2          
+ 858   2          mDelaymS(100);    
+ 859   2          
+ 860   2          //  ÓÒ
+ 861   2          motor_1_a = 0;
+ 862   2          motor_1_b = 1;
+ 863   2          motor_2_a = 0;
+ 864   2          motor_2_b = 0;
+ 865   2          
+ 866   2          mDelaymS(100);    
+ 867   2      
+ 868   2          
+ 869   2        }
+ 870   1        else if ( sportClass == 'h')
+ 871   1        {
+ 872   2      
+ 873   2          // ºó + ×ó
+ 874   2          
+ 875   2          //  ºóÍË
+ 876   2          motor_1_a = 0;
+ 877   2          motor_1_b = 1;
+ 878   2          motor_2_a = 0;
+ 879   2          motor_2_b = 1;
+ 880   2          
+ 881   2          mDelaymS(100);    
+ 882   2          
+ 883   2          //  ×ó
+ 884   2          motor_1_a = 0;
+ 885   2          motor_1_b = 0;
+ 886   2          motor_2_a = 0;
+ 887   2          motor_2_b = 1;
+ 888   2          
+ 889   2          mDelaymS(100);    
+ 890   2                  
+ 891   2          
+ 892   2        }else 
+ 893   1        {
+ 894   2          //  Á½ÂÖ´ýÃü
+ 895   2          motor_1_a = 0;
+ 896   2          motor_1_b = 0;
+ 897   2          motor_2_a = 0;
+ 898   2          motor_2_b = 0;
+ 899   2          mDelaymS(200);    // µÈ0.2Ãë
+ 900   2          
+ 901   2          
+ 902   2        }
+ 903   1      
+ 904   1      
+ 905   1        
+ 906   1        
+ 907   1        // timeSport++;
+ 908   1          
+ 909   1        // // Ò»¶¨Ê±¼äÎ´ÊÕµ½ÔË¶¯Ö¸Áî£¬×Ô¶¯Í£Ö¹£¬ÐèÒªAPP  1.5SÒÔÄÚ·¢ËÍÒ»´ÎÔË¶¯Êý¾Ý
+ 910   1        // if (startUDetectionFlag == 0)  // Î´½øÐÐ³¬Éù²¨Ì½²â£¬²î²»¶à 1.6S
+ 911   1        // {
+ 912   1          // //  ¼à²â³¤Ê±¼äÎÞÃüÁî£¬Í£Ö¹  8*0.2 Ãë
+ 913   1          // if ( timeSport >= 8)  
+ 914   1          // {
+ 915   1            // timeSport = 0;
+ 916   1            // sportClass = 'i';
+ 917   1            // //my_printf("---------------------------------------\r\n");
+ 918   1            // my_printf("-\r\n");
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 16  
+
+ 919   1             // // SBUF = '1';
+ 920   1             // // delayms(200);
+ 921   1             // // SBUF = 0x0d;
+ 922   1             // // delayms(200); 
+ 923   1             // // SBUF = 0x0a;
+ 924   1             
+ 925   1          // }
+ 926   1               
+ 927   1        // }
+ 928   1        // else
+ 929   1        // {
+ 930   1          
+ 931   1          // //  ¼à²â³¤Ê±¼äÎÞÃüÁî£¬Í£Ö¹  7*0.25 Ãë      ²î²»¶à1.7
+ 932   1          // if ( timeSport >= 7)
+ 933   1          // {
+ 934   1            // timeSport = 0;
+ 935   1            // sportClass = 'i';
+ 936   1            // //my_printf("---------------------------------------\r\n");
+ 937   1            // my_printf("-\r\n");
+ 938   1          // }
+ 939   1            
+ 940   1        // }
+ 941   1      
+ 942   1          
+ 943   1        
+ 944   1      }
+ 945          
+ 946          
+ 947          /*******************************************************************************
+ 948          * Function Name  :initUltrasoundGOIO
+ 949          * Description    : ³õÊ¼»¯³¬Éù²¨Ä£¿éÐèÒªµÄÒý½Å    Echo¸³Öµ 0  Trig ¸³Öµ1
+ 950          * Input          : None
+ 951          * Output         : None
+ 952          * Return         : None
+ 953          *******************************************************************************/
+ 954          void initUltrasoundGOIO( void )
+ 955          {
+ 956   1        
+ 957   1        // Ç°
+ 958   1        // Echo 0   Echo_1 = P0^3;
+ 959   1        P0_DIR &= ~(0x08);
+ 960   1        // Trig 1     Trig_1 = P0^2
+ 961   1        P0_DIR |= (0x04);
+ 962   1        
+ 963   1        // ºó
+ 964   1        // Echo 0   Echo_2 = P2^4;
+ 965   1        P2_DIR  &= ~(0x10);
+ 966   1        // Trig 1    Trig_2 = P2^5;
+ 967   1        P2_DIR |=(0x20);
+ 968   1        
+ 969   1        // ×ó
+ 970   1        // Echo 0   Echo_3 = P0^0;
+ 971   1        P0_DIR &= ~(0x01);
+ 972   1        // Trig 1   Trig_3 = P0^1;
+ 973   1        P0_DIR |= (0x02);
+ 974   1        
+ 975   1        // ÓÒ
+ 976   1        // Echo 0   Echo_4 = P1^6;
+ 977   1        P1_DIR &= ~(0x40);
+ 978   1        // Trig 1   Trig_4 = P1^7;
+ 979   1        P1_DIR |= (0x80);
+ 980   1      }
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 17  
+
+ 981          
+ 982          
+ 983          /*******************************************************************************
+ 984          * Function Name  : UltrasoundDetection_1()
+ 985          * Description    : 
+ 986          *         ½øÈë³¬Éù²¨  1ºÅ£¨Ç°£©Ä£¿é  Ì½²â £¬¾àÀëÔÚ400cmÒÔÄÚÐèÒªÉÏ´«Çé¿ö¡£
+ 987          *         ³¬¹ý300cm£¨¶¨Ê±Æ÷¼ÆÊ±ºÍ³¬Ê±µÄÇé¿ö»ã×ÜºóµÄÇé¿ö£© ¶¨ÎªÎÞÐ§µÄÌ½²â£¬²»ÐèÒªÉÏ±¨
+ 988          * Input          : None
+ 989          * Output         : None
+ 990          * Return         : None
+ 991          *******************************************************************************/
+ 992          void UltrasoundDetection_1()
+ 993          {
+ 994   1         
+ 995   1        checkTime = 3;  //  ÐèÒª½øÐÐ¶à´ÎÌ½²âµÄ´ÎÊý
+ 996   1        checkRightTime = 0;  // ÔÚcheckTimeÖÐ¾àÀë½Ï½üµÄÌ½²â´ÎÊý
+ 997   1        distanceSum = 0;  // ÓÐÐ§Ì½²âµÄ¾àÀëºÍ
+ 998   1        distanceCount = 800;  // Ä¬ÈÏ¾àÀë½ÏÔ¶
+ 999   1        
+1000   1        while (checkTime > 0)
+1001   1        {
+1002   2          
+1003   2          checkTime--;
+1004   2          
+1005   2           //my_printf("a  checkTime:%d\r\n",checkTime);
+1006   2          
+1007   2          //my_printf("qqqqq\r\n");
+1008   2        
+1009   2      
+1010   2          // ¿ªÊ¼³¬Éù²¨Ì½²â
+1011   2          
+1012   2          TH0=0xbb;     // ¶¨Ê±Æ÷ÇåÁã,Ö»´òËãÌ½²â4Ã×ÒÔÄÚµÄ¾àÀë,Ö»ÀÛ¼ÆÖµ 17647  ¸öÊ±ÖÓ
+1013   2          TL0=0x11; 
+1014   2          outDetection = 0;
+1015   2          
+1016   2          Trig_1=1;                    
+1017   2          delayus(20);
+1018   2          Trig_1=0;
+1019   2          
+1020   2            
+1021   2          while(!Echo_1);   //µ±EchoÎª 0 Ê±µÈ´ý
+1022   2          TR0=1;          //¿ªÆô¼ÆÊý
+1023   2          while(Echo_1)     //µ±EchoÎª1¼ÆÊý²¢µÈ´ý   »¹Ó¦¸ÃÉèÖÃ³¬³ö¾àÀë£¬ÎÞ·¨µÍµçÆ½µÄ Çé¿ö
+1024   2          {
+1025   3            if(outDetection !=0 )       //¶¨Ê±Æ÷³¬Ê±£¬³¬³ö²âÁ¿  ,Ìø¹ýµÈ´ý£¬½ÚÔ¼Ê±¼ä
+1026   3            {
+1027   4              TR0=0;    //¹Ø±Õ¼ÆÊý
+1028   4              break;
+1029   4            }           
+1030   3          }   
+1031   2          TR0=0;        //¹Ø±Õ¼ÆÊý
+1032   2          //my_printf("qqqqq\r\n");
+1033   2      
+1034   2          if(outDetection !=0 )   // ³¬Ê±Ö±½ÓÌø¹ý±¾´ÎÌ½²â
+1035   2          {
+1036   3            //mDelaymS(10);
+1037   3            outDetection = 0;
+1038   3            continue;
+1039   3          } 
+1040   2            
+1041   2           distanceCount =  conutDetection();     //¼ÆËã
+1042   2           //my_printf("distanceCount :%d\r\n",distanceCount );
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 18  
+
+1043   2          if (distanceCount < 300)  // ±¾´ÎÌ½²â¾àÀë½Ï½ü£¬¿É¼ÇÂ¼;¾àÀë½ÏÔ¶µÄÇé¿ö°üÀ¨1:³¬Ê± 2£º ²»³¬Ê±£¬µ«³¬¹ý400cm 
+1044   2          {
+1045   3            checkRightTime++;
+1046   3            //my_printf("checkRightTime:%bu  \r\n",checkRightTime);
+1047   3            distanceSum = distanceSum + distanceCount;
+1048   3          }
+1049   2      
+1050   2          mDelaymS(10);   //Éè¶Ìµã£¬ºÃ¼Ó¿ìÒ»´Î×ÜµÄ²Ù×÷Ñ­»·
+1051   2      
+1052   2        }
+1053   1        
+1054   1        // ÔÚ°²È«¾àÀëÍâ£¬²»ÓÃ´òÓ¡
+1055   1        if ( checkRightTime > 0 ) // ½øÐÐÁËÐ§¼ì²âµ½¾àÀë£¬Ì½²âµ½ÕÏ°­Îï½Ï½ü
+1056   1        {
+1057   2          //my_printf("t:%bu  d:%d \r\n",checkRightTime,(distanceSum/checkRightTime));
+1058   2          my_printf("1,1,%03d\r\n",(distanceSum/checkRightTime));  // ½øÐÐÉÏÐÐÊý¾Ý´«Êä
+1059   2        }
+1060   1        ////////////////////////
+1061   1      
+1062   1      }
+1063          
+1064          
+1065          /*******************************************************************************
+1066          * Function Name  : UltrasoundDetection_2()
+1067          * Description    : 
+1068          *         ½øÈë³¬Éù²¨  2ºÅ£¨ºó£©Ä£¿é  Ì½²â £¬¾àÀëÔÚ400cmÒÔÄÚÐèÒªÉÏ´«Çé¿ö¡£
+1069          *         ³¬¹ý300cm£¨¶¨Ê±Æ÷¼ÆÊ±ºÍ³¬Ê±µÄÇé¿ö»ã×ÜºóµÄÇé¿ö£© ¶¨ÎªÎÞÐ§µÄÌ½²â£¬²»ÐèÒªÉÏ±¨
+1070          * Input          : None
+1071          * Output         : None
+1072          * Return         : None
+1073          *******************************************************************************/
+1074          void UltrasoundDetection_2()
+1075          {
+1076   1      
+1077   1        checkTime = 3;  //  ÐèÒª½øÐÐ¶à´ÎÌ½²âµÄ´ÎÊý
+1078   1        checkRightTime = 0;  // ÔÚcheckTimeÖÐ¾àÀë½Ï½üµÄÌ½²â´ÎÊý
+1079   1        distanceSum = 0;  // ÓÐÐ§Ì½²âµÄ¾àÀëºÍ
+1080   1        distanceCount = 800;  // Ä¬ÈÏ¾àÀë½ÏÔ¶
+1081   1        
+1082   1        while (checkTime--)
+1083   1        {
+1084   2          // my_printf("a\r\n");
+1085   2          
+1086   2          //my_printf("qqqqq\r\n");
+1087   2      
+1088   2      
+1089   2          // ¿ªÊ¼³¬Éù²¨Ì½²â
+1090   2          
+1091   2          TH0=0xbb;     // ¶¨Ê±Æ÷ÇåÁã,Ö»´òËãÌ½²â4Ã×ÒÔÄÚµÄ¾àÀë,Ö»ÀÛ¼ÆÖµ 17647  ¸öÊ±ÖÓ
+1092   2          TL0=0x11; 
+1093   2          outDetection = 0;
+1094   2          
+1095   2          Trig_2=1;                    
+1096   2          delayus(20);
+1097   2          Trig_2=0;
+1098   2          
+1099   2            
+1100   2          while(!Echo_2);   //µ±EchoÎª 0 Ê±µÈ´ý
+1101   2          TR0=1;          //¿ªÆô¼ÆÊý
+1102   2          while(Echo_2)     //µ±EchoÎª1¼ÆÊý²¢µÈ´ý   »¹Ó¦¸ÃÉèÖÃ³¬³ö¾àÀë£¬ÎÞ·¨µÍµçÆ½µÄ Çé¿ö
+1103   2          {
+1104   3            if(outDetection !=0 )       //¶¨Ê±Æ÷³¬Ê±£¬³¬³ö²âÁ¿  ,Ìø¹ýµÈ´ý£¬½ÚÔ¼Ê±¼ä
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 19  
+
+1105   3            {
+1106   4              TR0=0;    //¹Ø±Õ¼ÆÊý
+1107   4              break;
+1108   4            }           
+1109   3          }   
+1110   2          TR0=0;        //¹Ø±Õ¼ÆÊý
+1111   2          //my_printf("qqqqq\r\n");
+1112   2      
+1113   2          if(outDetection !=0 )   // ³¬Ê±Ö±½ÓÌø¹ý±¾´ÎÌ½²â
+1114   2          {
+1115   3            mDelaymS(10);
+1116   3            outDetection = 0;
+1117   3            continue;
+1118   3          } 
+1119   2            
+1120   2           distanceCount =  conutDetection();     //¼ÆËã
+1121   2          // my_printf("distanceCount :%d\r\n",distanceCount );
+1122   2          if (distanceCount < 300)  // ±¾´ÎÌ½²â¾àÀë½Ï½ü£¬¿É¼ÇÂ¼;¾àÀë½ÏÔ¶µÄÇé¿ö°üÀ¨1:³¬Ê± 2£º ²»³¬Ê±£¬µ«³¬¹ý400cm 
+1123   2          {
+1124   3            checkRightTime++;
+1125   3            //my_printf("checkRightTime:%bu  \r\n",checkRightTime);
+1126   3            distanceSum = distanceSum + distanceCount;
+1127   3          }
+1128   2      
+1129   2          mDelaymS(10);   //Éè¶Ìµã£¬ºÃ¼Ó¿ìÒ»´Î×ÜµÄ²Ù×÷Ñ­»·
+1130   2      
+1131   2        }
+1132   1        
+1133   1        // ÔÚ°²È«¾àÀëÍâ£¬²»ÓÃ´òÓ¡
+1134   1        if ( checkRightTime > 0 ) // ½øÐÐÁËÐ§¼ì²âµ½¾àÀë£¬Ì½²âµ½ÕÏ°­Îï½Ï½ü
+1135   1        {
+1136   2          //my_printf("t:%bu  d:%d \r\n",checkRightTime,(distanceSum/checkRightTime));
+1137   2          my_printf("1,2,%03d\r\n",(distanceSum/checkRightTime));  // ½øÐÐÉÏÐÐÊý¾Ý´«Êä
+1138   2        }
+1139   1        ////////////////////////
+1140   1      
+1141   1      }
+1142          
+1143          
+1144          /*******************************************************************************
+1145          * Function Name  : UltrasoundDetection_3()
+1146          * Description    : 
+1147          *         ½øÈë³¬Éù²¨  3ºÅ£¨×ó£©Ä£¿é  Ì½²â £¬¾àÀëÔÚ400cmÒÔÄÚÐèÒªÉÏ´«Çé¿ö¡£
+1148          *         ³¬¹ý300cm£¨¶¨Ê±Æ÷¼ÆÊ±ºÍ³¬Ê±µÄÇé¿ö»ã×ÜºóµÄÇé¿ö£© ¶¨ÎªÎÞÐ§µÄÌ½²â£¬²»ÐèÒªÉÏ±¨
+1149          * Input          : None
+1150          * Output         : None
+1151          * Return         : None
+1152          *******************************************************************************/
+1153          void UltrasoundDetection_3()
+1154          {
+1155   1      
+1156   1        checkTime = 3;  //  ÐèÒª½øÐÐ¶à´ÎÌ½²âµÄ´ÎÊý
+1157   1        checkRightTime = 0;  // ÔÚcheckTimeÖÐ¾àÀë½Ï½üµÄÌ½²â´ÎÊý
+1158   1        distanceSum = 0;  // ÓÐÐ§Ì½²âµÄ¾àÀëºÍ
+1159   1        distanceCount = 800;  // Ä¬ÈÏ¾àÀë½ÏÔ¶
+1160   1        
+1161   1        while (checkTime--)
+1162   1        {
+1163   2          // my_printf("a\r\n");
+1164   2          
+1165   2          //my_printf("qqqqq\r\n");
+1166   2      
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 20  
+
+1167   2      
+1168   2          // ¿ªÊ¼³¬Éù²¨Ì½²â
+1169   2          
+1170   2          TH0=0xbb;     // ¶¨Ê±Æ÷ÇåÁã,Ö»´òËãÌ½²â4Ã×ÒÔÄÚµÄ¾àÀë,Ö»ÀÛ¼ÆÖµ 17647  ¸öÊ±ÖÓ
+1171   2          TL0=0x11; 
+1172   2          outDetection = 0;
+1173   2          
+1174   2          Trig_3=1;                    
+1175   2          delayus(20);
+1176   2          Trig_3=0;
+1177   2          
+1178   2            
+1179   2          while(!Echo_3);   //µ±EchoÎª 0 Ê±µÈ´ý
+1180   2          TR0=1;          //¿ªÆô¼ÆÊý
+1181   2          while(Echo_3)     //µ±EchoÎª1¼ÆÊý²¢µÈ´ý   »¹Ó¦¸ÃÉèÖÃ³¬³ö¾àÀë£¬ÎÞ·¨µÍµçÆ½µÄ Çé¿ö
+1182   2          {
+1183   3            if(outDetection !=0 )       //¶¨Ê±Æ÷³¬Ê±£¬³¬³ö²âÁ¿  ,Ìø¹ýµÈ´ý£¬½ÚÔ¼Ê±¼ä
+1184   3            {
+1185   4              TR0=0;    //¹Ø±Õ¼ÆÊý
+1186   4              break;
+1187   4            }           
+1188   3          }   
+1189   2          TR0=0;        //¹Ø±Õ¼ÆÊý
+1190   2          //my_printf("qqqqq\r\n");
+1191   2      
+1192   2          if(outDetection !=0 )   // ³¬Ê±Ö±½ÓÌø¹ý±¾´ÎÌ½²â
+1193   2          {
+1194   3            mDelaymS(10);
+1195   3            outDetection = 0;
+1196   3            continue;
+1197   3          } 
+1198   2            
+1199   2           distanceCount =  conutDetection();     //¼ÆËã
+1200   2          // my_printf("distanceCount :%d\r\n",distanceCount );
+1201   2          if (distanceCount < 300)  // ±¾´ÎÌ½²â¾àÀë½Ï½ü£¬¿É¼ÇÂ¼;¾àÀë½ÏÔ¶µÄÇé¿ö°üÀ¨1:³¬Ê± 2£º ²»³¬Ê±£¬µ«³¬¹ý400cm 
+1202   2          {
+1203   3            checkRightTime++;
+1204   3            //my_printf("checkRightTime:%bu  \r\n",checkRightTime);
+1205   3            distanceSum = distanceSum + distanceCount;
+1206   3          }
+1207   2      
+1208   2          mDelaymS(10);   //Éè¶Ìµã£¬ºÃ¼Ó¿ìÒ»´Î×ÜµÄ²Ù×÷Ñ­»·
+1209   2      
+1210   2        }
+1211   1        
+1212   1        // ÔÚ°²È«¾àÀëÍâ£¬²»ÓÃ´òÓ¡
+1213   1        if ( checkRightTime > 0 ) // ½øÐÐÁËÐ§¼ì²âµ½¾àÀë£¬Ì½²âµ½ÕÏ°­Îï½Ï½ü
+1214   1        {
+1215   2          //my_printf("t:%bu  d:%d \r\n",checkRightTime,(distanceSum/checkRightTime));
+1216   2          my_printf("1,3,%03d\r\n",(distanceSum/checkRightTime));  // ½øÐÐÉÏÐÐÊý¾Ý´«Êä
+1217   2        }
+1218   1        ////////////////////////
+1219   1      
+1220   1      }
+1221          
+1222          /*******************************************************************************
+1223          * Function Name  : UltrasoundDetection_4()
+1224          * Description    : 
+1225          *         ½øÈë³¬Éù²¨  4ºÅ£¨ÓÒ£©Ä£¿é  Ì½²â £¬¾àÀëÔÚ400cmÒÔÄÚÐèÒªÉÏ´«Çé¿ö¡£
+1226          *         ³¬¹ý300cm£¨¶¨Ê±Æ÷¼ÆÊ±ºÍ³¬Ê±µÄÇé¿ö»ã×ÜºóµÄÇé¿ö£© ¶¨ÎªÎÞÐ§µÄÌ½²â£¬²»ÐèÒªÉÏ±¨
+1227          * Input          : None
+1228          * Output         : None
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 21  
+
+1229          * Return         : None
+1230          *******************************************************************************/
+1231          void UltrasoundDetection_4()
+1232          {
+1233   1      
+1234   1        checkTime = 3;  //  ÐèÒª½øÐÐ¶à´ÎÌ½²âµÄ´ÎÊý
+1235   1        checkRightTime = 0;  // ÔÚcheckTimeÖÐ¾àÀë½Ï½üµÄÌ½²â´ÎÊý
+1236   1        distanceSum = 0;  // ÓÐÐ§Ì½²âµÄ¾àÀëºÍ
+1237   1        distanceCount = 800;  // Ä¬ÈÏ¾àÀë½ÏÔ¶
+1238   1        
+1239   1        while (checkTime--)
+1240   1        {
+1241   2          // my_printf("a\r\n");
+1242   2          
+1243   2          //my_printf("qqqqq\r\n");
+1244   2      
+1245   2      
+1246   2          // ¿ªÊ¼³¬Éù²¨Ì½²â
+1247   2          
+1248   2          TH0=0xbb;     // ¶¨Ê±Æ÷ÇåÁã,Ö»´òËãÌ½²â4Ã×ÒÔÄÚµÄ¾àÀë,Ö»ÀÛ¼ÆÖµ 17647  ¸öÊ±ÖÓ
+1249   2          TL0=0x11; 
+1250   2          outDetection = 0;
+1251   2          
+1252   2          Trig_4=1;                    
+1253   2          delayus(20);
+1254   2          Trig_4=0;
+1255   2          
+1256   2            
+1257   2          while(!Echo_4);   //µ±EchoÎª 0 Ê±µÈ´ý
+1258   2          TR0=1;          //¿ªÆô¼ÆÊý
+1259   2          while(Echo_4)     //µ±EchoÎª1¼ÆÊý²¢µÈ´ý   »¹Ó¦¸ÃÉèÖÃ³¬³ö¾àÀë£¬ÎÞ·¨µÍµçÆ½µÄ Çé¿ö
+1260   2          {
+1261   3            if(outDetection !=0 )       //¶¨Ê±Æ÷³¬Ê±£¬³¬³ö²âÁ¿  ,Ìø¹ýµÈ´ý£¬½ÚÔ¼Ê±¼ä
+1262   3            {
+1263   4              TR0=0;    //¹Ø±Õ¼ÆÊý
+1264   4              break;
+1265   4            }           
+1266   3          }   
+1267   2          TR0=0;        //¹Ø±Õ¼ÆÊý
+1268   2          //my_printf("qqqqq\r\n");
+1269   2      
+1270   2          if(outDetection !=0 )   // ³¬Ê±Ö±½ÓÌø¹ý±¾´ÎÌ½²â
+1271   2          {
+1272   3            mDelaymS(10);
+1273   3            outDetection = 0;
+1274   3            continue;
+1275   3          } 
+1276   2            
+1277   2           distanceCount =  conutDetection();     //¼ÆËã
+1278   2          // my_printf("distanceCount :%d\r\n",distanceCount );
+1279   2          if (distanceCount < 300)  // ±¾´ÎÌ½²â¾àÀë½Ï½ü£¬¿É¼ÇÂ¼;¾àÀë½ÏÔ¶µÄÇé¿ö°üÀ¨1:³¬Ê± 2£º ²»³¬Ê±£¬µ«³¬¹ý400cm 
+1280   2          {
+1281   3            checkRightTime++;
+1282   3            //my_printf("checkRightTime:%bu  \r\n",checkRightTime);
+1283   3            distanceSum = distanceSum + distanceCount;
+1284   3          }
+1285   2      
+1286   2          mDelaymS(10);   //Éè¶Ìµã£¬ºÃ¼Ó¿ìÒ»´Î×ÜµÄ²Ù×÷Ñ­»·
+1287   2      
+1288   2        }
+1289   1        
+1290   1        // ÔÚ°²È«¾àÀëÍâ£¬²»ÓÃ´òÓ¡
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 22  
+
+1291   1        if ( checkRightTime > 0 ) // ½øÐÐÁËÐ§¼ì²âµ½¾àÀë£¬Ì½²âµ½ÕÏ°­Îï½Ï½ü
+1292   1        {
+1293   2          //my_printf("t:%bu  d:%d \r\n",checkRightTime,(distanceSum/checkRightTime));
+1294   2          my_printf("1,4,%03d\r\n",(distanceSum/checkRightTime));  // ½øÐÐÉÏÐÐÊý¾Ý´«Êä
+1295   2        }
+1296   1        ////////////////////////
+1297   1      
+1298   1      }
+1299          
+1300          
+1301          
+1302          /*******************************************************************************
+1303          * Function Name  : UltrasoundDetection()
+1304          * Description    : ½øÈë³¬Éù²¨Ì½²â ,¹²4¸öÄ£¿é
+1305          * Input          : None
+1306          * Output         : None
+1307          * Return         : None
+1308          *******************************************************************************/
+1309          void UltrasoundDetection()
+1310          {
+1311   1        // ¼ì²âÊÇ·ñÐèÒª½øÐÐ³¬Éù²¨Ì½²â
+1312   1        if (startUDetectionFlag == 0)
+1313   1        {
+1314   2          return ;    
+1315   2        }
+1316   1        
+1317   1        TR2=0;  // ±£Ö¤ÔÚ¶ÁÈ¡ÖµµÃÊ±ºò²»»á³öÏÖ  ÔàÊý¾Ý
+1318   1        if (oneSecondeUDetectionFlag != 1)
+1319   1        {
+1320   2          TR2=1;
+1321   2          return;
+1322   2        }
+1323   1        oneSecondeUDetectionFlag = 0;
+1324   1        TR2=1;
+1325   1        
+1326   1        
+1327   1        UltrasoundDetection_1();  // Ç°
+1328   1        UltrasoundDetection_2();  // ºó
+1329   1        UltrasoundDetection_3();  // ×ó
+1330   1        UltrasoundDetection_4();  // ÓÒ
+1331   1      
+1332   1        
+1333   1      }
+1334          
+1335          void main(void) 
+1336          {
+1337   1        //////////////////////////////////////
+1338   1        /// ×¢Òâ £º¶Ë¿ÚµÄÊä³ö·½ÏòÐèÒªÖØÐÂÈ·¶¨
+1339   1        
+1340   1        
+1341   1        // ¶Ë¿ÚµÄ·½Ïò£¬Êä³ö
+1342   1        // P0_DIR = 0x00;
+1343   1        // P0_DIR |= 0xff;
+1344   1        // P1_DIR = 0x00;
+1345   1        // P1_DIR |= 0xff;  
+1346   1        
+1347   1        // P0_DIR = 0x00;
+1348   1        // P0_DIR |= 0x20;    // 
+1349   1        
+1350   1        // P1_DIR = 0x00;
+1351   1        // P1_DIR |= 0x0f;   // ÔË¶¯Ä£¿éµÄIO·½Ïò
+1352   1        
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 23  
+
+1353   1      
+1354   1        // µÆ³õÊ¼Îª0£¬¹Ø±Õ
+1355   1        // led_1 = 0;   
+1356   1        // led_2 = 0;
+1357   1        
+1358   1        initMotorGPIO();    // ³õÊ¼»¯ÔË¶¯Ïà¹ØµÄIO¿Ú
+1359   1        initUltrasoundGOIO();   // ³õÊ¼»¯  ³¬Éù²¨Ä£¿éµÄIO¿Ú
+1360   1        CH559UART0InterruptInit();  //  ´®¿ÚÖÐ¶Ï³õÊ¼»¯
+1361   1        
+1362   1        UltrasonicInit();  // ³¬Éù²¨Ä£¿éÏà¹ØµÄ¼Ä´æÆ÷³õÊ¼»¯
+1363   1         
+1364   1      
+1365   1        mDelaymS(20);
+1366   1        
+1367   1        TIM2Inital();   //  ³õÊ¼»¯¶¨Ê±Æ÷2 £¬¶¨Ê±Æ÷2ÊÇ±¾´úÂëµÄ¶¨Ê±¹¦ÄÜµÄ»ù×¼¶¨Ê±Æ÷
+1368   1      
+1369   1      
+1370   1             // motor_SweepFood_a = 1;
+1371   1           // motor_SweepFood_b = 0;
+1372   1          // // ÍÆ³öÊ³²ÛÂí´ï    
+1373   1           // motor_pushFood_a = 1;
+1374   1           // motor_pushFood_b = 0;
+1375   1      
+1376   1      
+1377   1           // motor_1_a = 1;
+1378   1           // motor_1_b = 0;
+1379   1          // // ÔË¶¯Âí´ï2   ÓÒ±ßµÄ
+1380   1           // motor_2_a = 1;
+1381   1           // motor_2_b = 0;
+1382   1           
+1383   1           
+1384   1           my_printf("Hello World\r\n");
+1385   1        while(1)
+1386   1        {
+1387   2          
+1388   2          if (oneSecondeFlag == 1)
+1389   2          {
+1390   3            my_printf("Hello World  1s  SencondNum:%d!\r\n",timer2HalfSencondNum);
+1391   3            oneSecondeFlag = 0;
+1392   3          }
+1393   2          
+1394   2          // ½øÐÐ³¬Éù²¨Ì½²â
+1395   2          UltrasoundDetection();
+1396   2          //my_printf("=\r\n");
+1397   2          // ½øÐÐÔË¶¯²Ù×÷
+1398   2          conductSport();
+1399   2      
+1400   2          
+1401   2          // Î¹Ê³²Ù×÷
+1402   2          startFeedPet();
+1403   2          stopFeedPet();
+1404   2      
+1405   2        }
+1406   1        
+1407   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1927    ----
+   CONSTANT SIZE    =    218    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.56.0.0   CH559_DEMO                                                        04/23/2019 15:21:09 PAGE 24  
+
+   DATA SIZE        =     30      27
+   IDATA SIZE       =     70    ----
+   BIT SIZE         =      6    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
